@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\Schedule;
+use App\Services\ScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -13,9 +14,14 @@ class ScheduleController extends Controller
 {
     public function show(Request $request) {
         try {
-            $schedule = $request->id && $request->id != null ? Schedule::findOrFail($request->id) : Schedule::convertFromJson($request->json);
+            $request->validate([
+                'id' => 'required_without:json|nullable|integer',
+                'json' => 'required_without:id|nullable',
+            ]);
 
-            return response()->json($schedule->convertToJson($request->from, $request->to));
+            $scheduleService = new ScheduleService($request->id ?? $request->json);
+
+            return response()->json($scheduleService->convertToJson($request->from, $request->to));
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Schedule not found'], 404);
         } catch(\Illuminate\Validation\ValidationException $e) {
@@ -35,13 +41,13 @@ class ScheduleController extends Controller
 //            if(auth()->user()->id !== $validate['user_id'])
 //                return response("Action prohibited", 403);
 
-            $schedule = Schedule::create($validate);
+            $scheduleService = new ScheduleService(Schedule::create($validate));
 
             if($request->events){
-                $schedule->addEvents($request->events);
+                $scheduleService->addEvents($request->events);
             }
 
-            return response()->json($schedule->convertToJson());
+            return response()->json($scheduleService->convertToJson());
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Schedule not found'], 404);
         } catch(\Illuminate\Validation\ValidationException $e) {
@@ -65,27 +71,10 @@ class ScheduleController extends Controller
                 'background_color' => 'sometimes|string|nullable|color',
             ]);
 
-            if($request->json) {
-                $schedule = Schedule::convertFromJson($request->json);
+            $scheduleService = new ScheduleService($request->id ?? $request->json);
+            $scheduleService->updateSchedule($validate);
 
-                $schedule->name = $request->name;
-                $schedule->primary_color = $request->primary_color;
-                $schedule->secondary_color = $request->secondary_color;
-                $schedule->background_color = $request->background_color;
-
-                return response()->json($schedule->convertToJson());
-            } else if($request->id) {
-                $schedule = Schedule::find($request->id);
-//
-//                if(auth()->user()->id !== $schedule->user_id)
-//                    return response("Action prohibited", 403);
-
-                $schedule->update($validate);
-
-                return response()->json($schedule->convertToJson());
-            }
-
-            return response('Not found', 404);
+            return response()->json($scheduleService->convertToJson());
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Schedule not found'], 404);
         } catch(\Illuminate\Validation\ValidationException $e) {
@@ -100,12 +89,13 @@ class ScheduleController extends Controller
             $request->validate([
                 'id' => 'required_without:json|nullable|integer',
                 'json' => 'required_without:id|nullable',
+                'events' => 'required|array',
             ]);
 
-            $schedule = $request->json ? Schedule::convertFromJson($request->json) : Schedule::find($request->id);
-            $schedule->addEvents($request->events);
+            $scheduleService = new ScheduleService($request->id ?? $request->json);
+            $scheduleService->addEvents($request->events);
 
-            return response()->json($schedule->convertToJson());
+            return response()->json($scheduleService->convertToJson());
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Schedule not found'], 404);
         } catch(\Illuminate\Validation\ValidationException $e) {
@@ -120,17 +110,13 @@ class ScheduleController extends Controller
             $request->validate([
                 'id' => 'required_without:json|nullable|integer',
                 'json' => 'required_without:id|nullable',
+                'event_id' => 'required'
             ]);
 
-            if($request->json) {
-                $schedule = Schedule::convertFromJson($request->json);
-                $schedule->removeEventFromJson($request->event_id);
-            } else {
-                $schedule = Schedule::find($request->id);
-                $schedule->removeEvent($request->event_id);
-            }
+            $scheduleService = new ScheduleService($request->id ?? $request->json);
+            $scheduleService->removeEvent($request->event_id);
 
-            return response()->json($schedule->convertToJson());
+            return response()->json($scheduleService->convertToJson());
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Schedule not found'], 404);
         } catch(\Illuminate\Validation\ValidationException $e) {
@@ -147,15 +133,12 @@ class ScheduleController extends Controller
                 'json' => 'required_without:id|nullable',
             ]);
 
-            $schedule = $request->json ? Schedule::convertFromJson($request->json) : Schedule::find($request->id);
-            $data = Schedule::generateIcal($schedule);
-
-            $filename = 'schedule_' . Str::random(10) . '.ics';
-            $path = storage_path('app/' . $filename);
+            $data = (new ScheduleService($request->id ?? $request->json))->generateIcal();
+            $path = storage_path('app/schedule_' . Str::random(10) . '.ics');
 
             file_put_contents($path, $data);
 
-            return response()->download($path, $filename, [
+            return response()->download($path, 'schedule.ics', [
                 'Content-Type' => 'text/calendar',
             ])->deleteFileAfterSend();
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {

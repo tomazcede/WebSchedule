@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\Schedule;
+use App\Services\ScheduleService;
 use Illuminate\Http\Request;
 
 class EventController extends Controller
@@ -37,11 +38,14 @@ class EventController extends Controller
     }
 
     public function parseEvents(Request $request) {
-        $file = $request->file('file');
+        try {
+            $file = $request->file('file');
+            $events = Event::parseEventsFromFile($file, $request->faculty_id);
 
-        $events = Event::parseEventsFromFile($file, $request->faculty_id);
-
-        return response()->json(compact('events'));
+            return response()->json(compact('events'));
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     public function update(Request $request) {
@@ -49,23 +53,13 @@ class EventController extends Controller
             $request->validate([
                 'schedule_id' => 'required_without:json|nullable|integer',
                 'json' => 'required_without:schedule_id|nullable',
+                'event' => 'required',
             ]);
 
-            if($request->json) {
-                $schedule = Schedule::convertFromJson($request->json);
-                $schedule->updateJsonEvent($request->event);
-            } else {
-                $schedule = Schedule::find($request->schedule_id);
-                $event = Event::find($request->event['id']);
+            $scheduleService = new ScheduleService($request->schedule_id ?? $request->json);
+            $scheduleService->updateEvent($request->event);
 
-                if(auth()->user() == null || auth()->user()->id != $event->user_id) {
-                    return response()->json(['error' => 'Unauthorized.'], 403);
-                }
-
-                $event->update($request->event);
-            }
-
-            return response()->json($schedule->convertToJson());
+            return response()->json($scheduleService->convertToJson());
         } catch(\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
