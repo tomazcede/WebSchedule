@@ -13,9 +13,7 @@ class UserController extends Controller
     }
 
     public function delete(Request $request, User $user){
-        $current = $request->user();
-
-        if($current->id !== $user->id)
+        if($request->user()->id !== $user->id)
             return response("Action prohibited", 403);
 
         $user->delete();
@@ -23,7 +21,7 @@ class UserController extends Controller
     }
 
     public function store(Request $request, User $user){
-        if(auth()->user()->id !== $user->id)
+        if($request->user()->id !== $user->id)
             return response("Action prohibited", 403);
 
         $user->fill($request->all());
@@ -33,9 +31,7 @@ class UserController extends Controller
 
     public function getCurrent(Request $request)
     {
-        $user = $request->user();
-
-        if($user) {
+        if($user = $request->user()) {
             Auth::loginUsingId($user->id);
             return response()->json(['user' => $user]);
         }

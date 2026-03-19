@@ -15,10 +15,7 @@ class ScheduleController extends Controller
         try {
             $schedule = $request->id && $request->id != null ? Schedule::findOrFail($request->id) : Schedule::convertFromJson($request->json);
 
-            return $request->from && $request->to ?
-                response()->json($schedule->convertToJson($request->from, $request->to))
-                :
-                response()->json($schedule->convertToJson());
+            return response()->json($schedule->convertToJson($request->from, $request->to));
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Schedule not found'], 404);
         } catch(\Illuminate\Validation\ValidationException $e) {
@@ -105,17 +102,8 @@ class ScheduleController extends Controller
                 'json' => 'required_without:id|nullable',
             ]);
 
-            if($request->json) {
-                $schedule = Schedule::convertFromJson($request->json);
-                $schedule->addEventsToJson($request->events);
-            } else {
-                $schedule = Schedule::find($request->id);
-//
-//                if(auth()->user()->id !== $schedule->user_id)
-//                    return response("Action prohibited", 403);
-
-                $schedule->addEvents($request->events);
-            }
+            $schedule = $request->json ? Schedule::convertFromJson($request->json) : Schedule::find($request->id);
+            $schedule->addEvents($request->events);
 
             return response()->json($schedule->convertToJson());
         } catch(\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -139,9 +127,6 @@ class ScheduleController extends Controller
                 $schedule->removeEventFromJson($request->event_id);
             } else {
                 $schedule = Schedule::find($request->id);
-//                if(auth()->user()->id !== $schedule->user_id)
-//                    return response("Action prohibited", 403);
-
                 $schedule->removeEvent($request->event_id);
             }
 
@@ -162,12 +147,7 @@ class ScheduleController extends Controller
                 'json' => 'required_without:id|nullable',
             ]);
 
-            if($request->json) {
-                $schedule = Schedule::convertFromJson($request->json);
-            } else {
-                $schedule = Schedule::find($request->id);
-            }
-
+            $schedule = $request->json ? Schedule::convertFromJson($request->json) : Schedule::find($request->id);
             $data = Schedule::generateIcal($schedule);
 
             $filename = 'schedule_' . Str::random(10) . '.ics';

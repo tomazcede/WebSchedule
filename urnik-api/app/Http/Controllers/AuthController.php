@@ -43,14 +43,11 @@ class AuthController extends Controller
             $data['password'] = bcrypt($data['password']);
 
             $user = User::create($data);
+            $user->schedules()->create(['name' => 'new']);
+            $user->refresh();
+
             Auth::login($user);
 
-            Schedule::create([
-                'user_id' => $user->id,
-                'name' => 'new'
-            ]);
-
-            $user->refresh();
             $request->session()->regenerate();
 
             return response(['user' => $user]);
