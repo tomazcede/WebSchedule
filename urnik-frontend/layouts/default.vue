@@ -8,11 +8,6 @@
       <edit-schedule-modal v-if="modalStore.modalType == 'editSchedule'" />
     </modal>
 
-    <div
-        class="fixed top-0 left-0 w-full h-screen bg-black opacity-50 z-20"
-        v-if="modalStore.isVisible"
-    ></div>
-
     <app-header />
 
     <slot />
